@@ -11,6 +11,9 @@ export const Route = createFileRoute('/dashboard')({
   beforeLoad: ({ context }) => {
     if (!context.session) throw redirect({ to: '/sign-in' })
   },
+  loader: async ({ context }) => {
+    await context.queryClient.prefetchQuery(context.trpc.posts.list.queryOptions())
+  },
   component: DashboardPage,
 })
 

@@ -81,6 +81,23 @@ src/
 - `protectedProcedure` throws `UNAUTHORIZED` when there is no session.
 - The client uses `@trpc/tanstack-react-query`: `useTRPC()` exposes `trpc.posts.list.queryOptions()` etc.
 
+## SSR data hydration
+
+`getRouter()` creates a per-request `QueryClient` + `TRPCClient` + `createTRPCOptionsProxy` and hands them to `setupRouterSsrQueryIntegration`. That dehydrates queries into the SSR HTML and rehydrates them into a fresh `QueryClient` on the browser. Prefetch in a route loader:
+
+```ts
+export const Route = createFileRoute('/dashboard')({
+  loader: async ({ context }) => {
+    await context.queryClient.prefetchQuery(context.trpc.posts.list.queryOptions())
+  },
+  component: DashboardPage,
+})
+```
+
+The component reads the same query with `useQuery(useTRPC().posts.list.queryOptions())` and gets cached data with no flicker.
+
+**Caveat:** the SSR-side tRPC client doesn't forward the incoming request's cookie, so `auth.api.getSession()` returns null inside the tRPC context during SSR — meaning **only `publicProcedure` queries can be safely prefetched in loaders**. Protected ones still work fine after hydration. See `CLAUDE.md` for the why and the fix path.
+
 ## Deploy to Render
 
 1. Push this repo to GitHub.

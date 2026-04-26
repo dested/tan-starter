@@ -1,10 +1,34 @@
+import { QueryClient } from '@tanstack/react-query'
 import { createRouter } from '@tanstack/react-router'
+import { setupRouterSsrQueryIntegration } from '@tanstack/react-router-ssr-query'
+import { createTRPCClient, httpBatchLink } from '@trpc/client'
+import { createTRPCOptionsProxy } from '@trpc/tanstack-react-query'
+import type { TRPCClient } from '@trpc/client'
 import { routeTree } from './routeTree.gen'
+import type { AppRouter } from './trpc/router'
+
+function getBaseUrl() {
+  if (typeof window !== 'undefined') return window.location.origin
+  return process.env.BETTER_AUTH_URL ?? `http://localhost:${process.env.PORT ?? 3000}`
+}
+
+export type TRPCOptionsProxy = ReturnType<typeof createTRPCOptionsProxy<AppRouter>>
 
 export function getRouter() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { staleTime: 60 * 1000 } },
+  })
+  const trpcClient: TRPCClient<AppRouter> = createTRPCClient<AppRouter>({
+    links: [httpBatchLink({ url: `${getBaseUrl()}/api/trpc` })],
+  })
+  const trpc = createTRPCOptionsProxy<AppRouter>({
+    client: trpcClient,
+    queryClient,
+  })
+
   const router = createRouter({
     routeTree,
-    context: { session: null },
+    context: { session: null, queryClient, trpcClient, trpc },
     defaultPreload: 'intent',
     defaultErrorComponent: ({ error }) => (
       <div className="p-6">
@@ -19,6 +43,8 @@ export function getRouter() {
     ),
     scrollRestoration: true,
   })
+
+  setupRouterSsrQueryIntegration({ router, queryClient })
 
   return router
 }

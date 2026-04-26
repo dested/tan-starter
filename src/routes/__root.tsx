@@ -8,14 +8,22 @@ import {
   createRootRouteWithContext,
 } from '@tanstack/react-router'
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { createServerFn } from '@tanstack/react-start'
 import { getRequest } from '@tanstack/react-start/server'
+import type { QueryClient } from '@tanstack/react-query'
+import type { TRPCClient } from '@trpc/client'
 import { auth, type Session } from '~/lib/auth'
 import { TRPCReactProvider } from '~/trpc/react'
+import type { AppRouter } from '~/trpc/router'
+import type { TRPCOptionsProxy } from '~/router'
 import appCss from '~/styles/app.css?url'
 
 interface RouterContext {
   session: Session | null
+  queryClient: QueryClient
+  trpcClient: TRPCClient<AppRouter>
+  trpc: TRPCOptionsProxy
 }
 
 const fetchSession = createServerFn({ method: 'GET' }).handler(async () => {
@@ -37,9 +45,10 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 })
 
 function RootComponent() {
+  const { queryClient, trpcClient } = Route.useRouteContext()
   return (
     <RootDocument>
-      <TRPCReactProvider>
+      <TRPCReactProvider queryClient={queryClient} trpcClient={trpcClient}>
         <Outlet />
       </TRPCReactProvider>
     </RootDocument>
@@ -89,6 +98,7 @@ function RootDocument({ children }: { children: ReactNode }) {
         </header>
         <main className="mx-auto max-w-5xl px-6 py-8">{children}</main>
         <TanStackRouterDevtools position="bottom-right" />
+        <ReactQueryDevtools buttonPosition="bottom-left" />
         <Scripts />
       </body>
     </html>

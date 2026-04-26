@@ -89,6 +89,27 @@ Top-level: `vite.config.ts`, `drizzle.config.ts`, `components.json`, `server.ts`
 3. `createContext` (in `src/trpc/init.ts`) calls `auth.api.getSession({ headers: req.headers })` and attaches it to `ctx`.
 4. `protectedProcedure` throws `UNAUTHORIZED` if `ctx.session` is null. `publicProcedure` doesn't check.
 
+### SSR data hydration (`@tanstack/react-router-ssr-query`)
+
+The `getRouter()` function (in `src/router.tsx`) creates a fresh `QueryClient`, `TRPCClient`, and `createTRPCOptionsProxy` per request, exposes them as router context, then calls `setupRouterSsrQueryIntegration({ router, queryClient })`. That integration:
+
+- Server: dehydrates the `QueryClient`'s state into the SSR HTML.
+- Client: rehydrates that state into a fresh `QueryClient` before app render.
+
+To prefetch a query for SSR, do it in a route's `loader` using `context.trpc`:
+
+```ts
+loader: async ({ context }) => {
+  await context.queryClient.prefetchQuery(context.trpc.posts.list.queryOptions())
+}
+```
+
+The component then calls `useQuery(useTRPC().posts.list.queryOptions())` and gets the cached data with no flicker / no refetch. Same query key on both sides — that's why it works.
+
+**Caveat: cookies are NOT forwarded to the SSR-side tRPC client.** The tRPC client created in `getRouter()` makes an HTTP loopback call to `/api/trpc` during SSR; that call has no `Cookie` header, so `auth.api.getSession()` inside the tRPC context returns `null`. **You can only safely prefetch `publicProcedure` queries in loaders.** Protected queries during SSR will return `UNAUTHORIZED`.
+
+To unlock protected SSR prefetch you need to forward the incoming request's `Cookie` header into `httpBatchLink({ headers })`. The blocker is that `getRequest` from `@tanstack/react-start/server` is banned from any module reachable from the client bundle (TanStack's import-protection plugin). The fix involves `createIsomorphicFn` plus a server-only helper file. Skipped here; document and fix when you actually need it.
+
 ## Common tasks
 
 ### Add a route
@@ -153,5 +174,5 @@ Static assets in `dist/client/` are served with `Cache-Control: public, max-age=
 - Don't introduce a separate API server — server routes ARE the API.
 - Don't add Next.js / Remix / SvelteKit assumptions. This is TanStack Router file-based routing; conventions differ.
 - Don't reach for `@trpc/react-query` (the old package) — we use `@trpc/tanstack-react-query` (the new one with `queryOptions()` / `mutationOptions()`).
-- Don't add SSR query hydration plumbing unless asked. Queries currently fetch client-side after hydration; the page shell is SSR. That's deliberate for "simple."
+- Don't try to prefetch `protectedProcedure` queries in route loaders without first wiring cookie forwarding (see the SSR caveat in the auth/tRPC flow section). It will silently return null sessions and `UNAUTHORIZED`.
 - Don't commit `.env`, `dist/`, `node_modules/`, `src/routeTree.gen.ts`, or `.tanstack/`. They're in `.gitignore`.
