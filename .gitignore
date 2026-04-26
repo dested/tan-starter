@@ -1,0 +1,27 @@
+node_modules
+dist
+.output
+.vite
+.cache
+
+# env
+.env
+.env.*
+!.env.example
+
+# editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# os
+.DS_Store
+Thumbs.db
+
+# logs
+*.log
+bun.lockb.bak
+
+# generated
+src/routeTree.gen.ts
+.tanstack
